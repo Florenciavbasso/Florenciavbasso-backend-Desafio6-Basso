@@ -1,0 +1,29 @@
+[
+    {
+      "id": 1,
+      "title": "T-shirt Mickey",
+      "description": "Remera de manga corta oversized con diseño Disney",
+      "price": 1290,
+      "thumbnail": "Remera-estampada-Disney.jpg",
+      "code": 101,
+      "stock": 20
+    },
+    {
+      "id": 2,
+      "title": "Sweater Vintage",
+      "description": "Buzo oversized con diseño Vintage",
+      "price": 2690,
+      "thumbnail": "buzo-oversized-vintage.jpg",
+      "code": 201,
+      "stock": 15
+    },
+    {
+      "id": 3,
+      "title": "Gorro de lana",
+      "description": "Gorro de lana tejido color celeste",
+      "price": 690,
+      "thumbnail": "gorro-invierno-celeste.jpg",
+      "code": 301,
+      "stock": 5
+    }
+  ]
