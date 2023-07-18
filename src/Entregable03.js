@@ -76,10 +76,14 @@ class ProductManager {
     }
 }
 
-const productManager = new ProductManager('products.json');
+const productManager = new ProductManager('./src/products.json');
+
 
 //Obtener los productos
 console.log(productManager.getProducts());
+
+module.exports = ProductManager;
+
 
 
 //Obtener productos por su id
