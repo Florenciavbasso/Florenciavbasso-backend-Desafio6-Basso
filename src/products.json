@@ -25,5 +25,50 @@
       "thumbnail": "gorro-invierno-celeste.jpg",
       "code": 301,
       "stock": 5
+    },
+    {
+      "id": 4,
+      "title": "Denim Jacket",
+      "description": "Chaqueta denim con diseño clásico",
+      "price": 1990,
+      "thumbnail": "chaqueta-denim.jpg",
+      "code": 401,
+      "stock": 10
+    },
+    {
+      "id": 5,
+      "title": "Camiseta Estampada",
+      "description": "Camiseta de manga corta con estampado colorido",
+      "price": 790,
+      "thumbnail": "camiseta-estampada.jpg",
+      "code": 501,
+      "stock": 25
+    },
+    {
+      "id": 6,
+      "title": "Sombrero Fedora",
+      "description": "Sombrero estilo Fedora para ocasiones elegantes",
+      "price": 1290,
+      "thumbnail": "sombrero-fedora.jpg",
+      "code": 601,
+      "stock": 8
+    },
+    {
+      "id": 7,
+      "title": "Vestido Floral",
+      "description": "Vestido de verano con estampado floral",
+      "price": 1490,
+      "thumbnail": "vestido-floral.jpg",
+      "code": 701,
+      "stock": 12
+    },
+    {
+      "id": 8,
+      "title": "Bolso de Cuero",
+      "description": "Bolso de mano de cuero con diseño elegante",
+      "price": 2590,
+      "thumbnail": "bolso-cuero.jpg",
+      "code": 801,
+      "stock": 6
     }
   ]
