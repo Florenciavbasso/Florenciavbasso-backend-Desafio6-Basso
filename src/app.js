@@ -1,5 +1,9 @@
 const express = require('express');
 const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const path = require('path');
+const exphbs = require('express-handlebars');
 const ProductManager = require('./Entregable03');
 const CartManager = require('./cartManager');
 
@@ -7,6 +11,11 @@ const productManager = new ProductManager('./src/products.json');
 const cartManager = new CartManager('./src/carrito.json');
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Configurar Handlebars como motor de plantillas
+app.engine('handlebars', exphbs());
+app.set('view engine', 'handlebars');
 
 // Endpoint para obtener todos los productos
 app.get('/api/products', async (req, res) => {
@@ -110,7 +119,44 @@ app.post('/api/carts/:cid/product/:pid', (req, res) => {
   }
 });
 
+// Endpoint para crear un nuevo producto
+app.post('/api/products', (req, res) => {
+  try {
+    const product = req.body;
+    productManager.addProduct(product);
+    io.emit('newProduct', product); // Emitir evento de nuevo producto a todos los clientes conectados
+    res.status(201).json({ message: 'Product added successfully', product });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint para eliminar un producto por ID
+app.delete('/api/products/:pid', (req, res) => {
+  try {
+    const productId = parseInt(req.params.pid);
+    productManager.deleteProduct(productId);
+    io.emit('deleteProduct', productId); // Emitir evento de eliminación de producto a todos los clientes conectados
+    res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Ruta para la vista home
+app.get('/', (req, res) => {
+  const products = productManager.getProducts();
+  res.render('home', { products });
+});
+
+// Ruta para la vista de productos en tiempo real
+app.get('/realtimeproducts', (req, res) => {
+  const products = productManager.getProducts();
+  res.render('realTimeProducts', { products });
+});
+
+
 // Iniciar el servidor
-app.listen(8080, () => {
+http.listen(8080, () => {
   console.log('Server is running on port 8080');
 });
