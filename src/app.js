@@ -1,162 +1,128 @@
 const express = require('express');
-const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const http = require('http');
 const path = require('path');
 const exphbs = require('express-handlebars');
-const ProductManager = require('./Entregable03');
-const CartManager = require('./cartManager');
+const { ProductManager } = require('./ProductManager.js'); // Importamos ProductManager usando 'require'
+const socketIO = require('socket.io'); // Importamos socket.io con 'require'
 
-const productManager = new ProductManager('./src/products.json');
-const cartManager = new CartManager('./src/carrito.json');
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+const port = 8080;
 
-// Configurar Handlebars como motor de plantillas
-app.engine('handlebars', exphbs());
+
+// Instancia del ProductManager
+const productManager = new ProductManager('./data/products.json');
+
+// Configurar el motor de plantillas Handlebars
+const hbs = exphbs.create({
+  extname: '.handlebars', // Extensión de los archivos de plantillas
+  defaultLayout: 'main', // Plantilla principal por defecto
+  layoutsDir: path.join(__dirname, 'views/layouts'), // Directorio de las plantillas principales
+  partialsDir: path.join(__dirname, 'views/partials'), // Directorio de los fragmentos de plantilla
+});
+app.engine('handlebars', hbs.engine);
 app.set('view engine', 'handlebars');
 
-// Endpoint para obtener todos los productos
-app.get('/api/products', async (req, res) => {
-  try {
-    const limit = req.query.limit;
-    const products = productManager.getProducts();
+// Middleware
+app.use(express.json());
+
+// Endpoint para obtener los productos
+app.get('/api/products', (req, res) => {
+    const { limit } = req.query;
+    let products = productManager.getProducts();
 
     if (limit) {
-      const limitedProducts = products.slice(0, limit);
-      res.json(limitedProducts);
-    } else {
-      res.json(products);
+        const limitNum = parseInt(limit);
+        products = products.slice(0, limitNum);
     }
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
+
+    res.json(products);
 });
 
-// Endpoint para obtener un producto por ID
-app.get('/api/products/:pid', async (req, res) => {
-  try {
+// Endpoint para obtener los producto por su ID
+app.get('/api/products/:pid', (req, res) => {
     const productId = parseInt(req.params.pid);
     const product = productManager.getProductById(productId);
 
     if (product) {
-      res.json(product);
+        res.json(product);
     } else {
-      res.status(404).json({ error: 'Product not found' });
+        res.status(404).json({ error: 'Product not found' });
     }
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
 });
 
-// Endpoint para agregar un nuevo producto
+// Ruta POST para agregar un nuevo producto
 app.post('/api/products', (req, res) => {
-  try {
-    const product = req.body;
-    productManager.addProduct(product);
-    res.status(201).json({ message: 'Product added successfully', product });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
+    const newProduct = req.body;
+    productManager.addProduct(newProduct);
+    
+    // Emitir evento de nuevo producto a través de sockets
+    io.emit('productoCreado', newProduct);
+
+    res.json(newProduct);
 });
 
-// Endpoint para actualizar un producto por ID
+// Ruta PUT para actualizar un producto por su ID
 app.put('/api/products/:pid', (req, res) => {
-  try {
     const productId = parseInt(req.params.pid);
     const fieldsToUpdate = req.body;
     productManager.updateProduct(productId, fieldsToUpdate);
+    
+    // Emitir evento de actualización a través de sockets
+    io.emit('productoActualizado', productId);
+
     res.json({ message: 'Product updated successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
 });
 
-// Endpoint para eliminar un producto por ID
+// Ruta DELETE para eliminar un producto por su ID
 app.delete('/api/products/:pid', (req, res) => {
-  try {
     const productId = parseInt(req.params.pid);
     productManager.deleteProduct(productId);
+    
+    // Emitir evento de eliminación a través de sockets
+    io.emit('productoEliminado', productId);
+
     res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
 });
 
-// Endpoint para crear un nuevo carrito
-app.post('/api/carts', (req, res) => {
-  try {
-    const cart = { products: [] };
-    const cartId = cartManager.addCart(cart);
-    res.status(201).json({ message: 'Cart created successfully', cartId });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
-// Endpoint para listar los productos en un carrito
-app.get('/api/carts/:cid', (req, res) => {
-  try {
-    const cartId = parseInt(req.params.cid);
-    const products = cartManager.getProductsInCart(cartId);
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// Servir archivos estáticos desde la carpeta "public"
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Endpoint para agregar un producto a un carrito
-app.post('/api/carts/:cid/product/:pid', (req, res) => {
-  try {
-    const cartId = parseInt(req.params.cid);
-    const productId = parseInt(req.params.pid);
-    const quantity = req.body.quantity || 1;
-    cartManager.addProductToCart(cartId, productId, quantity);
-    res.json({ message: 'Product added to cart successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Endpoint para crear un nuevo producto
-app.post('/api/products', (req, res) => {
-  try {
-    const product = req.body;
-    productManager.addProduct(product);
-    io.emit('newProduct', product); // Emitir evento de nuevo producto a todos los clientes conectados
-    res.status(201).json({ message: 'Product added successfully', product });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Endpoint para eliminar un producto por ID
-app.delete('/api/products/:pid', (req, res) => {
-  try {
-    const productId = parseInt(req.params.pid);
-    productManager.deleteProduct(productId);
-    io.emit('deleteProduct', productId); // Emitir evento de eliminación de producto a todos los clientes conectados
-    res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Ruta para la vista home
-app.get('/', (req, res) => {
-  const products = productManager.getProducts();
-  res.render('home', { products });
-});
-
-// Ruta para la vista de productos en tiempo real
+// Ruta para la vista en tiempo real utilizando Handlebars y WebSockets
 app.get('/realtimeproducts', (req, res) => {
-  const products = productManager.getProducts();
-  res.render('realTimeProducts', { products });
+    const products = productManager.getProducts();
+    res.render('realTimeProducts', { products }); // Asegúrate de tener una vista "realTimeProducts.handlebars"
+});
+
+// Manejar conexiones de socket.io
+io.on('connection', (socket) => {
+    console.log('Usuario conectado por WebSocket');
+
+    socket.on('productoCreado', (newProduct) => {
+        // Manejar evento de nuevo producto
+        console.log('Nuevo producto:', newProduct);
+    });
+
+    socket.on('productoActualizado', (productId) => {
+        // Manejar evento de producto actualizado
+        console.log('Producto actualizado:', productId);
+    });
+
+    socket.on('productoEliminado', (productId) => {
+        // Manejar evento de producto eliminado
+        console.log('Producto eliminado:', productId);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Usuario desconectado por WebSocket');
+    });
 });
 
 
 // Iniciar el servidor
-http.listen(8080, () => {
-  console.log('Server is running on port 8080');
+server.listen(port, () => {
+    console.log(`Servidor Express corriendo en http://localhost:${port}`);
 });
