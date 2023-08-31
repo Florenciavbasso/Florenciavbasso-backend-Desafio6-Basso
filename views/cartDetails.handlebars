@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detalles del Carrito</title>
+</head>
+<body>
+    <h1>Detalles del Carrito</h1>
+    <h2>Productos en el carrito</h2>
+    <ul>
+        {{#each products}}
+        <li>
+            <p>Nombre: {{this.product.title}}</p>
+            <p>Cantidad: {{this.quantity}}</p>
+            <p>Precio unitario: ${{this.product.price}}</p>
+            <button onclick="removeFromCart({{this.product.id}})">Eliminar del carrito</button>
+        </li>
+        {{/each}}
+    </ul>
+    <button onclick="clearCart()">Vaciar carrito</button>
+    <script>
+        function removeFromCart(productId) {
+            // Lógica para eliminar el producto del carrito
+            // Realizar una solicitud DELETE al servidor
+        }
+
+        function clearCart() {
+            // Lógica para vaciar el carrito
+            // Realizar una solicitud DELETE al servidor
+        }
+    </script>
+</body>
+</html>

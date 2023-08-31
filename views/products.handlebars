@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lista de Productos</title>
+</head>
+<body>
+    <h1>Lista de Productos</h1>
+    <ul>
+        {{#each products}}
+        <li>
+            <h2>{{this.title}}</h2>
+            <p>Descripción: {{this.description}}</p>
+            <p>Precio: ${{this.price}}</p>
+            <a href="/products/{{this.id}}">Ver detalles</a>
+            <button onclick="addToCart({{this.id}})">Agregar al carrito</button>
+        </li>
+        {{/each}}
+    </ul>
+    <script>
+        function addToCart(productId) {
+            // Lógica para agregar el producto al carrito
+            // Realizar una solicitud POST al servidor
+        }
+    </script>
+</body>
+</html>

@@ -87,6 +87,47 @@ class CartManager {
         }
         return [];
     }
+
+// Actualiza la cantidad de un producto en el carrito seleccionado
+updateProductQuantity(cartId, productToUpdate, newQuantity) {
+    const cart = this.getCartById(cartId);
+    if (!cart) {
+        console.log('Cart not found');
+        return;
+    }
+
+    const productIndex = cart.products.findIndex((product) => product.product === productToUpdate);
+    if (productIndex !== -1) {
+        cart.products[productIndex].quantity = newQuantity;
+        this.saveCarts();
+    } else {
+        console.log('Product not found in the cart');
+    }
 }
 
-module.exports = CartManager;
+// Remueve un producto del carrito seleccionado
+removeProductFromCart(cartId, productToRemove) {
+    const cart = this.getCartById(cartId);
+    if (!cart) {
+        console.log('Cart not found');
+        return;
+    }
+
+    cart.products = cart.products.filter((product) => product.product !== productToRemove);
+    this.saveCarts();
+}
+
+// Limpia todos los productos del carrito
+clearCart(cartId) {
+    const cart = this.getCartById(cartId);
+    if (cart) {
+        cart.products = [];
+        this.saveCarts();
+    } else {
+        console.log('Cart not found');
+    }
+}
+
+}
+
+module.exports = { CartManager };
