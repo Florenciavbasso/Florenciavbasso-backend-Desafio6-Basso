@@ -13,53 +13,129 @@ const io = socketIO(server);
 
 const port = 8080;
 
-// Conexión a la base de datos MongoDB
-mongoose.connect('mongodb://localhost:27017/myapp', {
+// Conectar a la base de datos MongoDB
+mongoose.connect('mongodb://localhost:27017', {
     useNewUrlParser: true,
-    useUnifiedTopology: true
+    useUnifiedTopology: true,
+})
+    .then(() => {
+        console.log('Connected to MongoDB');
+        // Después de conectar a MongoDB, crea una instancia de connectMongo con la conexión de mongoose
+        const MongoStore = connectMongo.create({ client: mongoose.connection.getClient() });
+        
+        // Configura express-session para gestionar sesiones con connect-mongo
+        app.use(session({
+            secret: 'clave-secreta-nati',
+            resave: false,
+            saveUninitialized: true,
+            store: MongoStore, // Utiliza la instancia de MongoStore creada
+        }));
+
+        // Obtener la ruta del archivo actual
+        const currentFileUrl = import.meta.url;
+        const __dirname = path.dirname(new URL(currentFileUrl).pathname);
+
+        // Instancia del ProductManager
+        const productManager = new ProductManager(path.join(__dirname, 'data/products.json'));
+
+        // Configurar el motor de plantillas Handlebars
+        const hbs = exphbs.create(); // Configura el motor de plantillas
+        app.engine('handlebars', hbs.engine);
+        app.set('view engine', 'handlebars');
+
+        // Middleware
+        app.use(express.json());
+        app.use(express.urlencoded({ extended: true })); //Para analizar datos del formulario
+
+
+// Ruta para la página de inicio
+app.get('/', (req, res) => {
+    const products = productManager.getProducts();
+    res.render('home', {
+        products,
+        user: req.session.user
+    }); // Pasa el usuario de la sesión a la vista
 });
 
-const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'Error de conexión a MongoDB:'));
-db.once('open', () => {
-    console.log('Conexión exitosa a MongoDB');
-});
-
-// Definir esquema de producto
-const productSchema = new mongoose.Schema({
-    name: String,
-    price: Number,
-    category: String,
-    availability: Boolean
-});
-
-const Product = mongoose.model('Product', productSchema); // Crear modelo Product
-
-// Instancia de ProductManager y CartManager
-const productManager = new ProductManager('./data/products.json');
-const cartManager = new CartManager('./data/cart.json');
-
-const hbs = exphbs.create({
-  extname: '.handlebars',
-  defaultLayout: 'main',
-  layoutsDir: path.join(__dirname, 'views/layouts'),
-  partialsDir: path.join(__dirname, 'views/partials'),
-});
-app.engine('handlebars', hbs.engine);
-app.set('view engine', 'handlebars');
-
-app.use(express.json());
-
-// Endpoint para obtener los productos desde MongoDB
+// Ruta para obtener los productos en formato JSON con filtros, paginación y ordenamiento
 app.get('/api/products', async (req, res) => {
-    // ... Código relacionado con MongoDB ...
+    const {
+        limit = 10, page = 1, sort, query, category, availability
+    } = req.query;
 
-    res.json(response);
-});
+    const skip = (page - 1) * limit;
+    const sortOptions = sort === 'asc' ? {
+        price: 1
+    } : sort === 'desc' ? {
+        price: -1
+    } : {};
+
+    const filter = {};
+    if (query) {
+        filter.$or = [{
+            title: {
+                $regex: query,
+                $options: 'i'
+            }
+        }, {
+            description: {
+                $regex: query,
+                $options: 'i'
+            }
+        }];
+    }
+    if (category) {
+        filter.category = category;
+    }
+    if (availability) {
+        filter.stock = {
+            $gt: 0
+        };
+    }
+
+    try {
+        const totalProducts = await Product.countDocuments(filter);
+        const products = await Product.find(filter)
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const totalPages = Math.ceil(totalProducts / limit);
+        const hasPrevPage = page > 1;
+        const hasNextPage = page < totalPages;
+
+        const prevPage = hasPrevPage ? page - 1 : null;
+        const nextPage = hasNextPage ? page + 1 : null;
+
+        res.json({
+            status: 'success',
+            payload: products,
+            totalPages,
+            prevPage,
+            nextPage,
+            page: parseInt(page),
+            hasPrevPage,
+            hasNextPage,
+            prevLink: hasPrevPage ?
+                `/api/products?limit=${limit}&page=${prevPage}&sort=${sort}&query=${query}&category=${category}&availability=${availability}` :
+                null,
+            nextLink: hasNextPage ?
+                `/api/products?limit=${limit}&page=${nextPage}&sort=${sort}&query=${query}&category=${category}&availability=${availability}` :
+                null,
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            message: 'An error occurred while fetching products'
+        });
+    }
+})
 
 // Endpoint para obtener los productos
 app.get('/api/products', (req, res) => {
-    const { limit } = req.query;
+    const {
+        limit
+    } = req.query;
     let products = productManager.getProducts();
 
     if (limit) {
@@ -78,7 +154,9 @@ app.get('/api/products/:pid', (req, res) => {
     if (product) {
         res.json(product);
     } else {
-        res.status(404).json({ error: 'Product not found' });
+        res.status(404).json({
+            error: 'Product not found'
+        });
     }
 });
 
@@ -86,7 +164,7 @@ app.get('/api/products/:pid', (req, res) => {
 app.post('/api/products', (req, res) => {
     const newProduct = req.body;
     productManager.addProduct(newProduct);
-    
+
     // Emitir evento de nuevo producto a través de sockets
     io.emit('productoCreado', newProduct);
 
@@ -98,74 +176,28 @@ app.put('/api/products/:pid', (req, res) => {
     const productId = parseInt(req.params.pid);
     const fieldsToUpdate = req.body;
     productManager.updateProduct(productId, fieldsToUpdate);
-    
+
     // Emitir evento de actualización a través de sockets
     io.emit('productoActualizado', productId);
 
-    res.json({ message: 'Product updated successfully' });
+    res.json({
+        message: 'Product updated successfully'
+    });
 });
 
 // Ruta DELETE para eliminar un producto por su ID
 app.delete('/api/products/:pid', (req, res) => {
     const productId = parseInt(req.params.pid);
     productManager.deleteProduct(productId);
-    
+
     // Emitir evento de eliminación a través de sockets
     io.emit('productoEliminado', productId);
 
-    res.json({ message: 'Product deleted successfully' });
+    res.json({
+        message: 'Product deleted successfully'
+    });
 });
 
-// Nuevos endpoints para la gestión de carritos
-app.post('/api/carts', (req, res) => {
-    const newCart = req.body;
-    cartManager.addCart(newCart);
-    
-    res.json(newCart);
-});
-
-app.post('/api/carts/:cid/products', (req, res) => {
-    const cartId = parseInt(req.params.cid);
-    const { productId, quantity } = req.body;
-
-    cartManager.addProductToCart(cartId, productId, quantity);
-
-    res.json({ message: 'Product added to cart successfully' });
-});
-
-app.put('/api/carts/:cid/products/:pid', (req, res) => {
-    const cartId = parseInt(req.params.cid);
-    const productId = parseInt(req.params.pid);
-    const { quantity } = req.body;
-
-    cartManager.updateProductQuantity(cartId, productId, quantity);
-
-    res.json({ message: 'Product quantity updated successfully' });
-});
-
-app.delete('/api/carts/:cid/products/:pid', (req, res) => {
-    const cartId = parseInt(req.params.cid);
-    const productId = parseInt(req.params.pid);
-
-    cartManager.removeProductFromCart(cartId, productId);
-
-    res.json({ message: 'Product removed from cart successfully' });
-});
-
-app.delete('/api/carts/:cid', (req, res) => {
-    const cartId = parseInt(req.params.cid);
-
-    cartManager.clearCart(cartId);
-
-    res.json({ message: 'Cart cleared successfully' });
-});
-
-// Ruta para la vista de detalles del carrito
-app.get('/carts/:cid', (req, res) => {
-    const cartId = parseInt(req.params.cid);
-    const productsInCart = cartManager.getProductsInCart(cartId);
-    res.render('cartDetails', { products: productsInCart }); // Asegúrate de tener una vista "cartDetails.handlebars"
-});
 
 // Servir archivos estáticos desde la carpeta "public"
 app.use(express.static(path.join(__dirname, 'public')));
@@ -173,7 +205,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Ruta para la vista en tiempo real utilizando Handlebars y WebSockets
 app.get('/realtimeproducts', (req, res) => {
     const products = productManager.getProducts();
-    res.render('realTimeProducts', { products }); // Asegúrate de tener una vista "realTimeProducts.handlebars"
+    res.render('realTimeProducts', {
+        products
+    });
 });
 
 // Manejar conexiones de socket.io
@@ -201,7 +235,10 @@ io.on('connection', (socket) => {
 });
 
 
-// Iniciar el servidor
-server.listen(port, () => {
-    console.log(`Servidor Express corriendo en http://localhost:${port}`);
-});
+        // Iniciar el servidor
+        server.listen(port, () => {
+            console.log(`Servidor Express corriendo en http://localhost:${port}`);
+        });
+    })
+    .catch(error => console.error('Error connecting to MongoDB:', error));
+
